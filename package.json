@@ -1,0 +1,35 @@
+{
+  "name": "demoblaze-qa-automation",
+  "version": "1.0.0",
+  "private": true,
+  "description": "E2E automation framework for demoblaze.com (Login + Cart) — Playwright + TypeScript.",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test tests/ui",
+    "test:api": "playwright test tests/api",
+    "test:performance": "playwright test tests/performance",
+    "test:regression": "playwright test --grep @regression",
+    "test:smoke": "playwright test --grep @smoke",
+    "test:chromium": "playwright test --project=chromium",
+    "test:firefox": "playwright test --project=firefox",
+    "test:webkit": "playwright test --project=webkit",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "report": "playwright show-report",
+    "codegen": "playwright codegen https://www.demoblaze.com",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --ext .ts",
+    "gen:test-cases": "tsx scripts/generate-test-case-workbook.ts"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.62.1",
+    "@types/node": "^22.0.0",
+    "dotenv": "^17.4.2",
+    "eslint": "^10.8.1",
+    "exceljs": "^4.4.0",
+    "tsx": "^4.23.12",
+    "typescript": "~5.9.0",
+    "typescript-eslint": "^8.66.0"
+  }
+}

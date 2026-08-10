@@ -1,0 +1,88 @@
+name: Playwright E2E
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # Nightly full cross-browser regression run.
+  schedule:
+    - cron: '0 2 * * *'
+  # Manual trigger with a choice of scope — mirrors the npm scripts a
+  # developer would run locally (see README "Running the suite").
+  workflow_dispatch:
+    inputs:
+      test_scope:
+        description: 'Which suite to run'
+        required: true
+        default: 'regression'
+        type: choice
+        options:
+          - regression
+          - ui
+          - api
+          - performance
+          - all
+
+jobs:
+  test:
+    name: Playwright tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      # A failure on webkit shouldn't hide a failure on chromium — each
+      # browser's report is uploaded independently either way.
+      fail-fast: false
+      matrix:
+        project: [chromium, firefox, webkit, mobile-chrome]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps ${{ matrix.project == 'mobile-chrome' && 'chromium' || matrix.project }}
+
+      - name: Determine test command
+        id: scope
+        shell: bash
+        run: |
+          case "${{ github.event.inputs.test_scope || 'regression' }}" in
+            ui) echo "grep=" >> "$GITHUB_OUTPUT"; echo "dir=tests/ui" >> "$GITHUB_OUTPUT" ;;
+            api) echo "grep=" >> "$GITHUB_OUTPUT"; echo "dir=tests/api" >> "$GITHUB_OUTPUT" ;;
+            performance) echo "grep=" >> "$GITHUB_OUTPUT"; echo "dir=tests/performance" >> "$GITHUB_OUTPUT" ;;
+            all) echo "grep=" >> "$GITHUB_OUTPUT"; echo "dir=" >> "$GITHUB_OUTPUT" ;;
+            *) echo "grep=--grep @regression" >> "$GITHUB_OUTPUT"; echo "dir=" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Run Playwright tests
+        # api/performance are chromium-only by design (see playwright.config.ts
+        # — firefox/webkit/mobile-chrome projects are scoped to tests/ui), so
+        # a manually-triggered api/performance run has nothing to do on the
+        # other matrix legs. Skip rather than fail on "no tests found".
+        if: matrix.project == 'chromium' || !contains(fromJSON('["api","performance"]'), github.event.inputs.test_scope || 'regression')
+        run: npx playwright test --project=${{ matrix.project }} ${{ steps.scope.outputs.grep }} ${{ steps.scope.outputs.dir }}
+        env:
+          CI: true
+
+      - name: Upload HTML report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.project }}
+          path: playwright-report/
+          retention-days: 14
+
+      - name: Upload JUnit/JSON results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.project }}
+          path: test-results/
+          retention-days: 14
