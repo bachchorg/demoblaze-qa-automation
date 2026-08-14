@@ -8,7 +8,6 @@ export interface PurchaseReceipt {
   date: string;
 }
 
-/** The SweetAlert-based "Thank you for your purchase!" confirmation. */
 export class PurchaseConfirmation {
   readonly root: Locator;
   readonly heading: Locator;
@@ -30,7 +29,8 @@ export class PurchaseConfirmation {
   async getReceipt(): Promise<PurchaseReceipt> {
     const text = (await this.detailsText.innerText()).replace(/\s+/g, ' ');
     const get = (label: string): string => {
-      const match = text.match(new RegExp(`${label}:\\s*([^\\n]+?)(?:\\s+(?:Id|Amount|Card Number|Name|Date):|$)`));
+      // Allow empty values without consuming the next receipt field.
+      const match = text.match(new RegExp(`${label}:\\s*([^\\n]*?)\\s*(?:(?:Id|Amount|Card Number|Name|Date):|$)`));
       if (!match) throw new Error(`Could not find "${label}" in confirmation text: "${text}"`);
       return match[1].trim();
     };

@@ -1,10 +1,5 @@
 import type { Locator, Page } from '@playwright/test';
 
-/**
- * The nav bar is present on every page of the site, so it's modelled as a
- * standalone component rather than duplicated on each page object — any
- * page object that needs it composes it in (see HomePage/CartPage/etc).
- */
 export class NavBar {
   readonly loginLink: Locator;
   readonly signupLink: Locator;

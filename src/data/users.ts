@@ -6,11 +6,7 @@ export interface TestUser {
   password: string;
 }
 
-/**
- * Where global setup persists the account it provisions, so every worker
- * process (Playwright shards tests across several) reads the same identity
- * instead of each registering its own. Gitignored — it's regenerated per run.
- */
+// Shared by all Playwright workers in the current run.
 export const TEST_USER_FILE = join(__dirname, '..', '..', '.auth', 'test-user.json');
 
 export function saveTestUser(user: TestUser): void {

@@ -5,24 +5,18 @@ import { loadTestUser, type TestUser } from '../data/users';
 import { CartPage } from '../pages/CartPage';
 import { HomePage } from '../pages/HomePage';
 import { ProductPage } from '../pages/ProductPage';
+import { randomPassword, uniqueUsername } from '../utils/random';
 
 interface Fixtures {
   homePage: HomePage;
   productPage: ProductPage;
   cartPage: CartPage;
   api: DemoblazeApiClient;
-  /** The account global setup provisioned (or verified) for this run. */
   testUser: TestUser;
-  /** A page that's already logged in as `testUser` when the test starts. */
+  isolatedCartUser: TestUser;
   loggedInHomePage: HomePage;
 }
 
-/**
- * Extends Playwright's base `test` with the framework's own fixtures, so
- * spec files ask for what they need by name instead of constructing page
- * objects by hand — this is the seam that keeps tests modular: change how a
- * page object is built once, here, and every test picks it up.
- */
 export const test = base.extend<Fixtures>({
   homePage: async ({ page }, use) => {
     await use(new HomePage(page));
@@ -44,10 +38,17 @@ export const test = base.extend<Fixtures>({
     await use(loadTestUser());
   },
 
-  loggedInHomePage: async ({ page, testUser }, use) => {
+  isolatedCartUser: async ({ api }, use) => {
+    const user = { username: uniqueUsername('qa_cart'), password: randomPassword() };
+    const result = await api.signup(user.username, user.password);
+    if (!result.ok) throw new Error(`Could not provision isolated cart user: ${result.errorMessage}`);
+    await use(user);
+  },
+
+  loggedInHomePage: async ({ page, isolatedCartUser }, use) => {
     const home = new HomePage(page);
     await home.goto();
-    await home.login(testUser.username, testUser.password);
+    await home.login(isolatedCartUser.username, isolatedCartUser.password);
     await use(home);
   },
 });

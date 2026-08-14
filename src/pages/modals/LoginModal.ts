@@ -26,13 +26,11 @@ export class LoginModal extends BasePage {
     await this.passwordInput.fill(password);
   }
 
-  /** Happy path: submits and waits for the modal to close. */
   async submitExpectingSuccess(): Promise<void> {
     await this.loginButton.click();
     await expect(this.root).toBeHidden({ timeout: 10_000 });
   }
 
-  /** Submits and captures the resulting validation alert (bad creds, empty fields, ...). */
   async submitExpectingError(): Promise<string> {
     return this.captureDialogMessage(() => this.loginButton.click());
   }

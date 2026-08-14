@@ -1,40 +1,60 @@
 import 'dotenv/config';
 
-/**
- * Single source of truth for every configurable parameter the framework
- * reads. Nothing in tests/pages/api should read `process.env` directly —
- * route it through here so there is one place that knows the defaults and
- * one place CI overrides via env vars (see .github/workflows/playwright.yml).
- */
-function bool(value: string | undefined, fallback: boolean): boolean {
+function booleanValue(name: string, fallback: boolean): boolean {
+  const value = process.env[name];
   if (value === undefined) return fallback;
-  return value.toLowerCase() === 'true' || value === '1';
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'true' || normalized === '1') return true;
+  if (normalized === 'false' || normalized === '0') return false;
+  throw new Error(`${name} must be one of: true, false, 1, 0. Received "${value}".`);
+}
+
+function integerValue(name: string, fallback: number, minimum: number): number {
+  const raw = process.env[name];
+  const value = raw === undefined ? fallback : Number(raw);
+  if (!Number.isInteger(value) || value < minimum) {
+    throw new Error(`${name} must be an integer >= ${minimum}. Received "${raw ?? value}".`);
+  }
+  return value;
+}
+
+function optionalIntegerValue(name: string, minimum: number): number | undefined {
+  return process.env[name] === undefined ? undefined : integerValue(name, minimum, minimum);
+}
+
+function urlValue(name: string, fallback: string): string {
+  const value = process.env[name] ?? fallback;
+  const parsed = new URL(value);
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error(`${name} must use http or https. Received "${value}".`);
+  }
+  return value.replace(/\/$/, '');
+}
+
+const fixedUsername = process.env.DEMOBLAZE_USERNAME || undefined;
+const fixedPassword = process.env.DEMOBLAZE_PASSWORD || undefined;
+
+if (Boolean(fixedUsername) !== Boolean(fixedPassword)) {
+  throw new Error('DEMOBLAZE_USERNAME and DEMOBLAZE_PASSWORD must either both be set or both be unset.');
 }
 
 export const env = {
-  /** Base URL of the app under test. */
-  baseUrl: process.env.BASE_URL ?? 'https://www.demoblaze.com',
-  /** Base URL of the JSON API the app talks to (used by tests/api). */
-  apiBaseUrl: process.env.API_BASE_URL ?? 'https://api.demoblaze.com',
+  baseUrl: urlValue('BASE_URL', 'https://www.demoblaze.com'),
+  apiBaseUrl: urlValue('API_BASE_URL', 'https://api.demoblaze.com'),
 
-  headless: bool(process.env.HEADLESS, true),
-  /** Per-action timeout, ms. */
-  actionTimeoutMs: Number(process.env.ACTION_TIMEOUT_MS ?? 15_000),
-  /** Whole-test timeout, ms. */
-  testTimeoutMs: Number(process.env.TEST_TIMEOUT_MS ?? 60_000),
+  headless: booleanValue('HEADLESS', true),
+  actionTimeoutMs: integerValue('ACTION_TIMEOUT_MS', 15_000, 1),
+  testTimeoutMs: integerValue('TEST_TIMEOUT_MS', 60_000, 1),
 
-  workers: process.env.WORKERS ? Number(process.env.WORKERS) : undefined,
-  retries: process.env.RETRIES ? Number(process.env.RETRIES) : undefined,
+  workers: optionalIntegerValue('WORKERS', 1),
+  retries: optionalIntegerValue('RETRIES', 0),
 
-  isCI: bool(process.env.CI, false),
+  isCI: booleanValue('CI', false),
 
-  /**
-   * A fixed, reusable demoblaze account for tests that need to log in as an
-   * *already-registered* user (e.g. "valid login" happy-path scenarios).
-   * demoblaze has no seeded accounts, so if these aren't set the global
-   * setup project (see playwright.config.ts) registers one via the API and
-   * writes it to `.auth/test-user.json` for the rest of the run to reuse.
-   */
-  fixedUsername: process.env.DEMOBLAZE_USERNAME,
-  fixedPassword: process.env.DEMOBLAZE_PASSWORD,
+  performanceMaxLoadMs: integerValue('PERF_MAX_LOAD_MS', 8_000, 1),
+  performanceMaxTtfbMs: integerValue('PERF_MAX_TTFB_MS', 3_000, 1),
+
+  fixedUsername,
+  fixedPassword,
 };

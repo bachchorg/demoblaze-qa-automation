@@ -32,19 +32,12 @@ export class HomePage extends BasePage {
     await expect(this.productCards.first()).toBeVisible();
   }
 
-  /**
-   * The home page's default view only lists "phone" and "notebook" — other
-   * categories (e.g. monitors) only render after clicking the matching
-   * sidebar filter, which re-fetches the product list via POST /bycat.
-   */
   async filterByCategory(category: Category): Promise<void> {
     const response = this.page.waitForResponse(
       (res) => res.url().includes('/bycat') && res.request().method() === 'POST',
     );
     await this.page.locator('.list-group-item', { hasText: CATEGORY_LABEL[category] }).click();
     await response;
-    // The list re-renders off the back of that response — give React/jQuery
-    // a beat to paint before callers query productCards.
     await expect(this.productCards.first()).toBeVisible();
   }
 
@@ -53,7 +46,6 @@ export class HomePage extends BasePage {
     await this.page.waitForURL('**/prod.html?idp_=*');
   }
 
-  /** Composed happy-path helper: open the modal, fill it, submit, expect success. */
   async login(username: string, password: string): Promise<void> {
     await this.nav.openLoginModal();
     await this.loginModal.waitUntilOpen();

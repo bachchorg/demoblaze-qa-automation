@@ -4,17 +4,6 @@ import { saveTestUser } from '../data/users';
 import { randomPassword, uniqueUsername } from '../utils/random';
 import { env } from './env';
 
-/**
- * Runs once before the whole suite (wired via playwright.config.ts
- * `globalSetup`). demoblaze has no seeded accounts, so "log in with valid
- * credentials" needs *an* account to exist first.
- *
- * If DEMOBLAZE_USERNAME/DEMOBLAZE_PASSWORD are set (e.g. in CI, to reuse one
- * stable account across runs), this verifies that account logs in and stops.
- * Otherwise it registers a fresh, uniquely-named account via the API — no
- * UI interaction needed for setup, and no risk of colliding with an account
- * a previous/concurrent run created.
- */
 export default async function globalSetup(): Promise<void> {
   const apiContext = await request.newContext({ baseURL: env.apiBaseUrl });
   const api = new DemoblazeApiClient(apiContext, env.apiBaseUrl);

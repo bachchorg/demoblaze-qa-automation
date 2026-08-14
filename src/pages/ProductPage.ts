@@ -24,13 +24,11 @@ export class ProductPage extends BasePage {
     return (await this.title.textContent())?.trim() ?? '';
   }
 
-  /** Price is rendered as e.g. "$360" — parsed to a plain number for assertions. */
   async getPrice(): Promise<number> {
     const text = (await this.price.textContent()) ?? '';
     return Number(text.replace(/[^\d.]/g, ''));
   }
 
-  /** Returns the confirmation alert text ("Product added"). */
   async addToCart(): Promise<string> {
     return this.captureDialogMessage(() => this.addToCartLink.click());
   }

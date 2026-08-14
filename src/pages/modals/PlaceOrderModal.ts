@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page } from '@playwright/test';
+import { env } from '../../config/env';
 import { BasePage } from '../BasePage';
 
 export interface OrderDetails {
@@ -52,12 +53,19 @@ export class PlaceOrderModal extends BasePage {
     if (details.year !== undefined) await this.yearInput.fill(details.year);
   }
 
-  /** Happy path: submits a fully-valid order. Caller awaits the confirmation dialog separately. */
   async purchase(): Promise<void> {
+    const cartDeletion = this.page.waitForResponse(
+      (response) =>
+        response.url().endsWith('/deletecart') && response.request().method() === 'POST',
+      { timeout: env.actionTimeoutMs },
+    );
     await this.purchaseButton.click();
+    const response = await cartDeletion;
+    if (!response.ok()) {
+      throw new Error(`POST /deletecart failed with HTTP ${response.status()}.`);
+    }
   }
 
-  /** Negative path: required fields missing — demoblaze raises a native alert instead of submitting. */
   async purchaseExpectingValidationError(): Promise<string> {
     return this.captureDialogMessage(() => this.purchaseButton.click());
   }

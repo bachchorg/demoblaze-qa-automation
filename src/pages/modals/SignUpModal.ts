@@ -26,7 +26,6 @@ export class SignUpModal extends BasePage {
     await this.passwordInput.fill(password);
   }
 
-  /** demoblaze always responds to sign-up via an alert — success or failure. */
   async submit(): Promise<string> {
     return this.captureDialogMessage(() => this.signupButton.click());
   }

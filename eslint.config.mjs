@@ -12,8 +12,6 @@ export default tseslint.config(
     rules: {
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
       '@typescript-eslint/no-explicit-any': 'warn',
-      // Playwright's own fixture syntax for a fixture with no upstream
-      // dependencies is `async ({}, use) => ...` — idiomatic, not a mistake.
       'no-empty-pattern': 'off',
     },
   },

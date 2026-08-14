@@ -1,4 +1,4 @@
-import type { APIRequestContext } from '@playwright/test';
+import type { APIRequestContext, APIResponse } from '@playwright/test';
 
 export interface ProductEntry {
   id: number;
@@ -19,17 +19,6 @@ export type LoginResult =
 
 export type SignupResult = { ok: true } | { ok: false; errorMessage: string };
 
-/**
- * Thin wrapper over the JSON API demoblaze.com's own frontend calls
- * (api.demoblaze.com) — reverse-engineered by observing real network traffic
- * from the site (see README "How the API layer was derived"), not from
- * public docs (none exist). Used by tests/api directly, and by the global
- * setup to provision a test account without going through the UI.
- *
- * Takes a Playwright APIRequestContext rather than wrapping fetch/axios so
- * API calls get the same tracing, retry, and reporting integration as UI
- * steps — this is the idiomatic way to do API testing in Playwright.
- */
 export class DemoblazeApiClient {
   constructor(
     private readonly request: APIRequestContext,
@@ -40,12 +29,23 @@ export class DemoblazeApiClient {
     return Buffer.from(password, 'utf8').toString('base64');
   }
 
+  private async requireSuccessfulResponse(response: APIResponse, operation: string): Promise<string> {
+    const text = await response.text();
+    if (!response.ok()) {
+      throw new Error(`${operation} failed: ${response.status()} ${text}`);
+    }
+    return text;
+  }
+
   async getEntries(): Promise<ProductEntry[]> {
     const res = await this.request.get(`${this.baseUrl}/entries`);
     if (!res.ok()) {
       throw new Error(`GET /entries failed: ${res.status()} ${await res.text()}`);
     }
-    const body = (await res.json()) as EntriesResponse;
+    const body = (await res.json()) as Partial<EntriesResponse>;
+    if (!Array.isArray(body.Items)) {
+      throw new Error('GET /entries returned an invalid payload: expected an Items array.');
+    }
     return body.Items;
   }
 
@@ -54,14 +54,15 @@ export class DemoblazeApiClient {
     return items.find((item) => item.title === title);
   }
 
-  /** /entries only returns "phone" and "notebook" — monitors (and other
-   * categories) are fetched per-category via this endpoint instead. */
   async getByCategory(cat: string): Promise<ProductEntry[]> {
     const res = await this.request.post(`${this.baseUrl}/bycat`, { data: { cat } });
     if (!res.ok()) {
       throw new Error(`POST /bycat failed: ${res.status()} ${await res.text()}`);
     }
-    const body = (await res.json()) as EntriesResponse;
+    const body = (await res.json()) as Partial<EntriesResponse>;
+    if (!Array.isArray(body.Items)) {
+      throw new Error('POST /bycat returned an invalid payload: expected an Items array.');
+    }
     return body.Items;
   }
 
@@ -69,33 +70,37 @@ export class DemoblazeApiClient {
     const res = await this.request.post(`${this.baseUrl}/signup`, {
       data: { username, password: this.encodePassword(password) },
     });
-    const text = await res.text();
-    // demoblaze returns HTTP 200 with an empty body on success, and HTTP 200
-    // with { errorMessage } on failure — status code alone can't tell you
-    // which happened, you have to look at the body.
+    const text = await this.requireSuccessfulResponse(res, 'POST /signup');
+    // This API returns HTTP 200 for both domain success and failure.
     if (!text || text === '""' || text.trim() === '') return { ok: true };
     try {
-      const parsed = JSON.parse(text) as { errorMessage?: string };
-      if (parsed.errorMessage) return { ok: false, errorMessage: parsed.errorMessage };
-    } catch {
-      /* non-JSON, fall through to ok */
+      const parsed = JSON.parse(text) as unknown;
+      if (parsed === '') return { ok: true };
+      if (typeof parsed === 'object' && parsed !== null && 'errorMessage' in parsed) {
+        return { ok: false, errorMessage: String(parsed.errorMessage) };
+      }
+    } catch (error) {
+      throw new Error('POST /signup returned invalid JSON.', { cause: error });
     }
-    return { ok: true };
+    throw new Error(`POST /signup returned an unexpected payload: ${text}`);
   }
 
   async login(username: string, password: string): Promise<LoginResult> {
     const res = await this.request.post(`${this.baseUrl}/login`, {
       data: { username, password: this.encodePassword(password) },
     });
-    const text = await res.text();
+    const text = await this.requireSuccessfulResponse(res, 'POST /login');
     try {
-      const parsed = JSON.parse(text) as { errorMessage?: string };
-      if (parsed.errorMessage) return { ok: false, errorMessage: parsed.errorMessage };
-    } catch {
-      /* not JSON -> it's the raw "Auth_token: ..." success string */
+      const parsed = JSON.parse(text) as unknown;
+      if (typeof parsed === 'object' && parsed !== null && 'errorMessage' in parsed) {
+        return { ok: false, errorMessage: String(parsed.errorMessage) };
+      }
+      if (typeof parsed === 'string' && parsed.startsWith('Auth_token: ')) {
+        return { ok: true, token: parsed.slice('Auth_token: '.length) };
+      }
+    } catch (error) {
+      throw new Error('POST /login returned invalid JSON.', { cause: error });
     }
-    // Success body is a JSON string like "Auth_token: xxxxx" (quoted).
-    const token = text.replace(/^"|"$/g, '');
-    return { ok: true, token };
+    throw new Error(`POST /login returned an unexpected payload: ${text}`);
   }
 }
